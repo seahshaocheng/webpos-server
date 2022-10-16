@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 var bodyParser = require('body-parser');
 const moment = require('moment'); 
@@ -30,8 +31,12 @@ app.get('/',(req,res)=>{
 
 app.post('/makePayment', async (req,res)=>{
     const config = new Config();
-    config.apiKey = "AQEyhmfxLYLGbxVLw0m/n3Q5qf3VeIpUAJZETHZ7x3yuu2dYh/gaN2nwzL5TukZH2pDJEmUQwV1bDb7kfNy1WIxIIkxgBw==-34beH5jK8XJ9ptLk3/JmO3dRbGIrjVOMJTi7AHqLiJM=-&M$(QQPGr3,jve&6"
-    config.merchantAccount = "PME_POS_SG";
+    //config.apiKey = "AQEyhmfxLYLGbxVLw0m/n3Q5qf3VeIpUAJZETHZ7x3yuu2dYh/gaN2nwzL5TukZH2pDJEmUQwV1bDb7kfNy1WIxIIkxgBw==-34beH5jK8XJ9ptLk3/JmO3dRbGIrjVOMJTi7AHqLiJM=-&M$(QQPGr3,jve&6"
+    //config.merchantAccount = "PME_POS_SG";
+
+    config.apiKey = process.env.APIKEY;
+    config.merchantAccount = process.env.MERCHANT_ACCOUNT;
+
     //"URL of the terminal, for example https://192.168.68.117, WITHOUT the port/nexo part :8443/nexo/";
     console.log("hit");
     console.log(req.body);
