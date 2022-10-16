@@ -83,7 +83,7 @@ app.post('/makePayment', async (req,res)=>{
 
 });
 
-app.listen("4000", () => {
+app.listen(process.env.PORT || 3000, () => {
     console.log("Merchant Server is live");
   }
 );
