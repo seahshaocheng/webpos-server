@@ -4,6 +4,8 @@ var bodyParser = require('body-parser');
 const moment = require('moment'); 
 const { Client,Config,TerminalLocalAPI, TerminalCloudAPI,} = require('@adyen/api-library');
 const { TerminalApiRequest } = require('@adyen/api-library/lib/src/typings/terminal/models');
+const QRCode = require('qrcode');
+const sgMail = require('@sendgrid/mail')
 
 const app = express();
 
@@ -77,6 +79,70 @@ app.post('/makePayment', async (req,res)=>{
     }
 
 });
+
+// email receipt endpoint
+app.post('/emailReceipt',async(req,res)=>{
+
+    let orderData = JSON.stringify(req.body.orderData);
+    
+    try{
+        let base64code = await QRCode.toDataURL(orderData);
+        sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+        let qrData = base64code.split(",");
+
+        const emailData = {
+            from: {
+                email: 'markdev.seah@gmail.com',
+                name: 'Adyen SG WebPOS'
+            },
+            personalizations:[
+                {
+                    to:[
+                        {
+                            email:req.body.customerEmail
+                        }
+                    ],
+                    dynamic_template_data:{
+                        items:req.body.orderData.items,
+                        receipt:true,
+                        orderqr:"<img alt='Order QR' src='"+base64code+"' width='100' height='100'/>"
+                    }
+                }
+            ],
+            subject: 'Your Example Order Confirmation',
+            template_id:"d-f939187424b04cd7abd1dfca87cba8ba",
+            attachments:[
+                {
+                    filename:"testqrcode.png",
+                    content:qrData[1],
+                    content_id:"orderqrcode"
+                }
+            ]
+        }
+
+          sgMail
+            .send(emailData)
+            .then(() => {
+              console.log('Email sent');
+              res.send({msg:"Receipt successfully sent"});
+            })
+            .catch((error) => {
+              console.error(JSON.stringify(error))
+              res.status(500).send({msg:"Something went wrong went sending receipt to customer email"});
+            });
+    }
+    catch(error){
+        console.log(error);
+        res.status(500).send({msg:"Something went wrong went sending receipt to customer email"});
+    }
+});
+
+//Reversal endpoint
+
+
+// Card Acquisition endpoint
+
+
 
 app.listen(process.env.PORT || 3000, () => {
     console.log("Merchant Server is live");
