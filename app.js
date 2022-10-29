@@ -5,7 +5,9 @@ const moment = require('moment');
 const { Client,Config,TerminalLocalAPI, TerminalCloudAPI,} = require('@adyen/api-library');
 const { TerminalApiRequest } = require('@adyen/api-library/lib/src/typings/terminal/models');
 const QRCode = require('qrcode');
-const sgMail = require('@sendgrid/mail')
+const sgMail = require('@sendgrid/mail');
+const axios = require('axios');
+const { terminal } = require('@adyen/api-library/lib/src/typings');
 
 const app = express();
 
@@ -135,6 +137,60 @@ app.post('/emailReceipt',async(req,res)=>{
         console.log(error);
         res.status(500).send({msg:"Something went wrong went sending receipt to customer email"});
     }
+});
+
+//find terminal endpoint
+app.post('/fetchTerminals',async(req,res)=>{
+    const config = new Config();
+
+    config.apiKey = process.env.APIKEY;
+    config.merchantAccount = process.env.MERCHANT_ACCOUNT;
+
+    let fetchTerminalsResponse = await axios({
+            method:'POST',
+            headers:{
+                'x-api-key': process.env.APIKEY
+            },
+            url:'https://postfmapi-test.adyen.com/postfmapi/terminal/v1/getTerminalsUnderAccount',
+            data:{
+                companyAccount:process.env.COMPANY_ACCOUNT,
+                merchantAccount:process.env.MERCHANT_ACCOUNT
+            }
+        });
+
+    let availableTerminals = [];
+
+    if(fetchTerminalsResponse.data.merchantAccounts!==undefined && fetchTerminalsResponse.data.merchantAccounts.length>0){
+        let inStoreTerminals = fetchTerminalsResponse.data.merchantAccounts[0].inStoreTerminals;
+        let storesTerminals = fetchTerminalsResponse.data.merchantAccounts[0].stores;
+            console.log(inStoreTerminals);
+        if(inStoreTerminals!==undefined && inStoreTerminals.length>0){
+            inStoreTerminals.map((terminal,i)=>{
+                let terminalData = {
+                    POIID:terminal,
+                    store:"MerchantAccountLevel",
+                }
+                console.log(terminalData);
+                availableTerminals.push(terminalData);
+            });
+        }
+        
+        if(storesTerminals!==undefined && storesTerminals.length>0){
+            storesTerminals.map((store,i)=>{
+                if(store.inStoreTerminals.length>0){
+                    store.inStoreTerminals.map((terminal,i)=>{
+                        let terminalData = {
+                            POIID:terminal,
+                            store:store.store,
+                        }
+                        console.log(terminalData);
+                        availableTerminals.push(terminalData);
+                    });
+                }
+            });
+        }
+    }
+    res.send(availableTerminals);
 });
 
 //Reversal endpoint
