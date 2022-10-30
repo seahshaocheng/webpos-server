@@ -42,6 +42,8 @@ app.post('/makePayment', async (req,res)=>{
     const client = new Client({ config });
     client.setEnvironment("TEST");
 
+
+
     const terminalAPI = new TerminalCloudAPI(client);
     let terminalAPIPaymentRequest= {
         SaleToPOIRequest:{
@@ -72,6 +74,15 @@ app.post('/makePayment', async (req,res)=>{
         }
     }
 
+    if(req.body.CardAcquisitionTransaction!==undefined){
+        terminalAPIPaymentRequest['SaleToPOIRequest']['PaymentRequest']['PaymentData']={
+            CardAcquisitionReference:{
+                TimeStamp:moment().toISOString(),
+                TransactionID:req.body.CardAcquisitionTransaction
+            }
+        }
+    }
+    console.log(JSON.stringify(terminalAPIPaymentRequest));
     try{
         const terminalApiResponse = await terminalAPI.sync(terminalAPIPaymentRequest);
         res.send(terminalApiResponse);
@@ -197,7 +208,51 @@ app.post('/fetchTerminals',async(req,res)=>{
 
 
 // Card Acquisition endpoint
+app.post('/cardacq',async(req,res)=>{
+    const config = new Config();
 
+    config.apiKey = process.env.APIKEY;
+    config.merchantAccount = process.env.MERCHANT_ACCOUNT;
+
+    const client = new Client({ config });
+    client.setEnvironment("TEST");
+
+    const terminalAPI = new TerminalCloudAPI(client);
+    let terminalAPIPaymentRequest= {
+        SaleToPOIRequest:{
+            MessageHeader:{
+                ProtocolVersion:"3.0",
+                MessageClass:"Service",
+                MessageCategory:"CardAcquisition",
+                MessageType:"Request",
+                SaleID:"POS-"+moment.utc().format("YYYYMMDDhhmmss"),
+                ServiceID:moment.utc().format("YYYYMMDDss"),
+                POIID:req.body.terminalId
+            },
+            CardAcquisitionRequest:{
+                SaleData:{
+                    SaleTransactionID:{
+                        TransactionID:"Mark-POS-"+moment.utc().format("YYYYMMDDhhmmss"),
+                        TimeStamp:moment().toISOString()
+                    },
+                    TokenRequestedType:"Customer"
+                },
+                CardAcquisitionTransaction:{
+                    TotalAmount:req.body.amount
+                }
+            }
+        }
+    }
+
+    try{
+        const terminalApiResponse = await terminalAPI.sync(terminalAPIPaymentRequest);
+        res.send(terminalApiResponse);
+        //process some input and send custom input
+    }
+    catch(error){
+        console.log(error);
+    }
+});
 
 
 app.listen(process.env.PORT || 3000, () => {
