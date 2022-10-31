@@ -150,60 +150,6 @@ app.post('/emailReceipt',async(req,res)=>{
     }
 });
 
-//find terminal endpoint
-app.post('/fetchTerminals',async(req,res)=>{
-    const config = new Config();
-
-    config.apiKey = process.env.APIKEY;
-    config.merchantAccount = process.env.MERCHANT_ACCOUNT;
-
-    let fetchTerminalsResponse = await axios({
-            method:'POST',
-            headers:{
-                'x-api-key': process.env.APIKEY
-            },
-            url:'https://postfmapi-test.adyen.com/postfmapi/terminal/v1/getTerminalsUnderAccount',
-            data:{
-                companyAccount:process.env.COMPANY_ACCOUNT,
-                merchantAccount:process.env.MERCHANT_ACCOUNT
-            }
-        });
-
-    let availableTerminals = [];
-
-    if(fetchTerminalsResponse.data.merchantAccounts!==undefined && fetchTerminalsResponse.data.merchantAccounts.length>0){
-        let inStoreTerminals = fetchTerminalsResponse.data.merchantAccounts[0].inStoreTerminals;
-        let storesTerminals = fetchTerminalsResponse.data.merchantAccounts[0].stores;
-            console.log(inStoreTerminals);
-        if(inStoreTerminals!==undefined && inStoreTerminals.length>0){
-            inStoreTerminals.map((terminal,i)=>{
-                let terminalData = {
-                    POIID:terminal,
-                    store:"MerchantAccountLevel",
-                }
-                console.log(terminalData);
-                availableTerminals.push(terminalData);
-            });
-        }
-        
-        if(storesTerminals!==undefined && storesTerminals.length>0){
-            storesTerminals.map((store,i)=>{
-                if(store.inStoreTerminals.length>0){
-                    store.inStoreTerminals.map((terminal,i)=>{
-                        let terminalData = {
-                            POIID:terminal,
-                            store:store.store,
-                        }
-                        console.log(terminalData);
-                        availableTerminals.push(terminalData);
-                    });
-                }
-            });
-        }
-    }
-    res.send(availableTerminals);
-});
-
 //Reversal endpoint
 
 
@@ -251,6 +197,100 @@ app.post('/cardacq',async(req,res)=>{
     }
     catch(error){
         console.log(error);
+    }
+});
+
+app.post('/fetchStores',async(req,res)=>{
+    try{
+        let fetchStores = await axios({
+            method:'POST',
+            headers:{
+                'x-api-key': process.env.APIKEY
+            },
+            url:'https://postfmapi-test.adyen.com/postfmapi/terminal/v1/getStoresUnderAccount',
+            data:{
+                companyAccount:process.env.COMPANY_ACCOUNT,
+                merchantAccount:process.env.MERCHANT_ACCOUNT
+            }
+        });
+
+        let availableStores = [];
+
+        fetchStores.data.stores.map((store,i)=>{
+            availableStores.push(store.store);
+        });
+
+        res.send(availableStores);
+    }
+    catch(e){
+        res.status(500).send(e);
+    }
+});
+
+//find terminal endpoint
+app.post('/fetchTerminals',async(req,res)=>{
+    const config = new Config();
+
+    config.apiKey = process.env.APIKEY;
+    config.merchantAccount = process.env.MERCHANT_ACCOUNT;
+    let requestData={
+        companyAccount:process.env.COMPANY_ACCOUNT,
+        merchantAccount:process.env.MERCHANT_ACCOUNT
+    }
+
+    console.log("store is not undefied", req.body);
+    if(req.body.store!==undefined){
+        requestData['store']=req.body.store
+    }
+
+    console.log("the store",requestData);
+
+    try{
+        let fetchTerminalsResponse = await axios({
+            method:'POST',
+            headers:{
+                'x-api-key': process.env.APIKEY
+            },
+            url:'https://postfmapi-test.adyen.com/postfmapi/terminal/v1/getTerminalsUnderAccount',
+            data:requestData
+        });
+
+    
+        let availableTerminals = [];
+
+        if(fetchTerminalsResponse.data.merchantAccounts!==undefined && fetchTerminalsResponse.data.merchantAccounts.length>0){
+            let inStoreTerminals = fetchTerminalsResponse.data.merchantAccounts[0].inStoreTerminals;
+            let storesTerminals = fetchTerminalsResponse.data.merchantAccounts[0].stores;
+                console.log(inStoreTerminals);
+            if(inStoreTerminals!==undefined && inStoreTerminals.length>0){
+                inStoreTerminals.map((terminal,i)=>{
+                    let terminalData = {
+                        POIID:terminal,
+                        store:"MerchantAccountLevel",
+                    }
+                    console.log(terminalData);
+                    availableTerminals.push(terminalData);
+                });
+            }
+            
+            if(storesTerminals!==undefined && storesTerminals.length>0){
+                storesTerminals.map((store,i)=>{
+                    if(store.inStoreTerminals.length>0){
+                        store.inStoreTerminals.map((terminal,i)=>{
+                            let terminalData = {
+                                POIID:terminal,
+                                store:store.store,
+                            }
+                            availableTerminals.push(terminalData);
+                        });
+                    }
+                });
+            }
+        }
+        res.send(availableTerminals);
+    }
+    catch(e){
+        res.status(500).send(e);
     }
 });
 
