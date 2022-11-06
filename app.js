@@ -8,6 +8,7 @@ const QRCode = require('qrcode');
 const sgMail = require('@sendgrid/mail');
 const axios = require('axios');
 const { terminal } = require('@adyen/api-library/lib/src/typings');
+const {makeTerminalRequest} = require('./utilities/terminalInterface');
 
 const app = express();
 
@@ -82,7 +83,7 @@ app.post('/makePayment', async (req,res)=>{
             }
         }
     }
-    console.log(JSON.stringify(terminalAPIPaymentRequest));
+
     try{
         const terminalApiResponse = await terminalAPI.sync(terminalAPIPaymentRequest);
         res.send(terminalApiResponse);
@@ -164,7 +165,11 @@ app.post('/cardacq',async(req,res)=>{
     client.setEnvironment("TEST");
 
     const terminalAPI = new TerminalCloudAPI(client);
-    let terminalAPIPaymentRequest= {
+    let cardAcqusitionData = {
+        amount :req.body.amount
+    }
+    let cardAcquisitionRequest = makeTerminalRequest("CardAcquisition",req.body.terminalId,cardAcqusitionData);
+    /*let terminalAPIPaymentRequest= {
         SaleToPOIRequest:{
             MessageHeader:{
                 ProtocolVersion:"3.0",
@@ -188,9 +193,88 @@ app.post('/cardacq',async(req,res)=>{
                 }
             }
         }
+    }*/
+    try{
+        const terminalApiResponse = await terminalAPI.sync(cardAcquisitionRequest);
+        //res.send(terminalApiResponse);
+        //process some input and send custom input
+
+        //process cardAcqData
+
+        if(terminalApiResponse!=={}){
+            if(terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.Response.Result==="Success"){
+                //Takecard token and pass to Joffery'sAPI
+                console.log(JSON.stringify(terminalApiResponse,null,4))
+                let cardAcqRef = terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.POIData.POITransactionID.TransactionID;
+                console.log("going to input call")
+                //Make Input Call
+                let InputRequest = makeTerminalRequest("Input",req.body.terminalId);
+                //console.log(JSON.stringify(InputRequest,null,4))
+                const inputTerminalApiResponse = await terminalAPI.sync(InputRequest);
+                
+                //res.send(inputTerminalApiResponse);
+                //process Input response
+
+                if(inputTerminalApiResponse.SaleToPOIResponse.InputResponse.InputResult.Response.Result==="Success"){
+                    //Make Payment
+                    let paymentData = {
+                        currency:"SGD",
+                        amount:50
+                    }
+
+                    let paymentRequest = makeTerminalRequest("Payment",req.body.terminalId,paymentData)
+                    console.log(JSON.stringify(paymentRequest,null,4));
+                    paymentRequest['SaleToPOIRequest']['PaymentRequest']['PaymentData']={
+                        CardAcquisitionReference:{
+                            TimeStamp:moment().toISOString(),
+                            TransactionID:cardAcqRef
+                        }
+                    }
+                    const paymentApiResponse = await terminalAPI.sync(paymentRequest);
+                    res.send(paymentApiResponse);
+                }
+                else{
+                    res.send({"message":"unsuccessful input request"});
+                }
+            }
+            else{
+                res.send({"message":"unsuccessful card acquisition"});
+            }
+        }
+       // res.send(terminalApiResponse);
+    }
+    catch(error){
+        console.log(error);
+    }
+});
+
+app.post('/inputRequest',async(req,res)=>{
+    const config = new Config();
+
+    config.apiKey = process.env.APIKEY;
+    config.merchantAccount = process.env.MERCHANT_ACCOUNT;
+
+    const client = new Client({ config });
+    client.setEnvironment("TEST");
+
+    const terminalAPI = new TerminalCloudAPI(client);
+    let terminalAPIPaymentRequest= {
+        SaleToPOIRequest:{
+            MessageHeader:{
+                ProtocolVersion:"3.0",
+                MessageClass:"Device",
+                MessageCategory:"Input",
+                MessageType:"Request",
+                SaleID:"POS-"+moment.utc().format("YYYYMMDDhhmmss"),
+                ServiceID:moment.utc().format("YYYYMMDDss"),
+                POIID:req.body.terminalId
+            },
+            InputRequest:inputRequest
+        }
     }
 
     try{
+        console.log(terminalAPIPaymentRequest);
         const terminalApiResponse = await terminalAPI.sync(terminalAPIPaymentRequest);
         res.send(terminalApiResponse);
         //process some input and send custom input
