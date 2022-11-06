@@ -50,7 +50,7 @@ app.post('/makePayment', async (req,res)=>{
         currency:req.body.currency,
         amount:req.body.amount
     }
-    let paymentRequest = makeTerminalRequest("Payment",req.body.terminalId,paymentData);
+    let paymentRequest = makeTerminalRequest("Payment",req.body.terminalId,req.body.posId,paymentData);
 
     try{
         const terminalApiResponse = await terminalAPI.sync(paymentRequest);
@@ -136,7 +136,7 @@ app.post('/cardacq',async(req,res)=>{
     let cardAcqusitionData = {
         amount :req.body.amount
     }
-    let cardAcquisitionRequest = makeTerminalRequest("CardAcquisition",req.body.terminalId,cardAcqusitionData);
+    let cardAcquisitionRequest = makeTerminalRequest("CardAcquisition",req.body.terminalId,req.body.posId,cardAcqusitionData);
 
     try{
         const terminalApiResponse = await terminalAPI.sync(cardAcquisitionRequest);

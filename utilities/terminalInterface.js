@@ -3,7 +3,7 @@ const {makeCardAcquisitionRequest} = require('../data/cardAcquisitionRequest');
 const {inputRequest} = require('../data/inputRequest');
 const moment = require('moment'); 
 
-const makeTerminalRequest = (MessageCategory,terminalId,otherData) => {
+const makeTerminalRequest = (MessageCategory,terminalId,posId,otherData) => {
     let ISOTimenow = moment().toISOString();
     let request = {
         SaleToPOIRequest:{
@@ -12,7 +12,7 @@ const makeTerminalRequest = (MessageCategory,terminalId,otherData) => {
                 MessageClass:null,
                 MessageCategory:null,
                 MessageType:"Request",
-                SaleID:"POS-"+moment.utc().format("YYYYMMDDhhmmss"),
+                SaleID:posId+"-"+moment.utc().format("YYYYMMDDhhmmss"),
                 ServiceID:moment.utc().format("YYYYMMDDss"),
                 POIID:terminalId
             }
