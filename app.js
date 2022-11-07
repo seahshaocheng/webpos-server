@@ -43,17 +43,15 @@ app.post('/makePayment', async (req,res)=>{
     const client = new Client({ config });
     client.setEnvironment("TEST");
 
-
-
     const terminalAPI = new TerminalCloudAPI(client);
-    let paymentData = {
+    let paymentRequestData = {
         currency:req.body.currency,
         amount:req.body.amount
     }
-    let paymentRequest = makeTerminalRequest("Payment",req.body.terminalId,req.body.posId,paymentData);
+    let paymentRequest1 = makeTerminalRequest("Payment",req.body.terminalId,req.body.posId,paymentRequestData);
 
     try{
-        const terminalApiResponse = await terminalAPI.sync(paymentRequest);
+        const terminalApiResponse = await terminalAPI.sync(paymentRequest1);
         res.send(terminalApiResponse);
     }
     catch(error){
@@ -140,45 +138,49 @@ app.post('/cardacq',async(req,res)=>{
 
     try{
         const terminalApiResponse = await terminalAPI.sync(cardAcquisitionRequest);
-        //res.send(terminalApiResponse);
-        //process some input and send custom input
-
         //process cardAcqData
         if(terminalApiResponse!=={}){
             if(terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.Response.Result==="Success"){
-                //Takecard token and pass to Joffery'sAPI
+                //TODO: Take card token and pass to Joffery API for check.
                 //console.log(JSON.stringify(terminalApiResponse,null,4))
+
+                //IF account is not found, ask for registration
                 
-                let cardAcqRef = terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.POIData.POITransactionID.TransactionID;
+                //else go on for discount and payment
+
+                    //if there is more than 1 account found
+                    let cardAcqRef = terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.POIData.POITransactionID.TransactionID;
                 
-                //Make Input Call
-                let InputRequest = makeTerminalRequest("Input",req.body.terminalId);
-                //console.log(JSON.stringify(InputRequest,null,4))
-                const inputTerminalApiResponse = await terminalAPI.sync(InputRequest);
-                
-                //res.send(inputTerminalApiResponse);
-                //process Input response
-                if(inputTerminalApiResponse.SaleToPOIResponse.InputResponse.InputResult.Response.Result==="Success"){
-                    //Make Payment with discounted amount based on points
-                    let paymentData = {
-                        currency:"SGD",
-                        amount:50
+                    //Make Input Call for more than 1 account
+                    let InputRequest = makeTerminalRequest("Input",req.body.terminalId);
+                    //console.log(JSON.stringify(InputRequest,null,4))
+                    const inputTerminalApiResponse = await terminalAPI.sync(InputRequest);
+            
+                    //process Input response
+                    if(inputTerminalApiResponse.SaleToPOIResponse.InputResponse.InputResult.Response.Result==="Success"){
+                        //Make Payment with discounted amount based on points
+                        let paymentData = {
+                            currency:req.body.currency,
+                            amount:req.body.amount
+                        }
+
+                        let paymentRequest = makeTerminalRequest("Payment",req.body.terminalId,req.body.posId,paymentData)
+                        console.log(JSON.stringify(paymentRequest,null,4));
+                        paymentRequest['SaleToPOIRequest']['PaymentRequest']['PaymentData']={
+                            CardAcquisitionReference:{
+                                TimeStamp:moment().toISOString(),
+                                TransactionID:cardAcqRef
+                            }
+                        }
+                        const paymentApiResponse = await terminalAPI.sync(paymentRequest);
+                        res.send(paymentApiResponse);
+                    }
+                    else{
+                        res.send({"message":"Unsuccessful Input Request"});
                     }
 
-                    let paymentRequest = makeTerminalRequest("Payment",req.body.terminalId,paymentData)
-                    console.log(JSON.stringify(paymentRequest,null,4));
-                    paymentRequest['SaleToPOIRequest']['PaymentRequest']['PaymentData']={
-                        CardAcquisitionReference:{
-                            TimeStamp:moment().toISOString(),
-                            TransactionID:cardAcqRef
-                        }
-                    }
-                    const paymentApiResponse = await terminalAPI.sync(paymentRequest);
-                    res.send(paymentApiResponse);
-                }
-                else{
-                    res.send({"message":"Unsuccessful Input Request"});
-                }
+                    //ASk if wants to redeem points
+
             }
             else{
                 res.send({"message":"Unsuccessful Card Acquisition"});
@@ -228,6 +230,10 @@ app.post('/inputRequest',async(req,res)=>{
 });
 
 app.post('/fetchStores',async(req,res)=>{
+    console.log({
+        companyAccount:process.env.COMPANY_ACCOUNT,
+        merchantAccount:process.env.MERCHANT_ACCOUNT
+    });
     try{
         let fetchStores = await axios({
             method:'POST',
@@ -323,6 +329,6 @@ app.post('/fetchTerminals',async(req,res)=>{
 
 
 app.listen(process.env.PORT || 3000, () => {
-    console.log("Merchant Server is live");
+    console.log("Merchant Server is live at "+process.env.PORT);
   }
 );

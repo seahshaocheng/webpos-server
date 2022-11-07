@@ -5,7 +5,8 @@ const moment = require('moment');
 
 const makeTerminalRequest = (MessageCategory,terminalId,posId,otherData) => {
     let ISOTimenow = moment().toISOString();
-    let request = {
+    let request = null;
+    request = {
         SaleToPOIRequest:{
             MessageHeader:{
                 ProtocolVersion:"3.0",
@@ -23,7 +24,8 @@ const makeTerminalRequest = (MessageCategory,terminalId,posId,otherData) => {
         case "Payment":
             request.SaleToPOIRequest.MessageHeader.MessageCategory=MessageCategory;
             request.SaleToPOIRequest.MessageHeader.MessageClass="Service";
-            request.SaleToPOIRequest['PaymentRequest'] = makePaymentRequest(ISOTimenow,transaction_id,otherData['currency'],otherData['amount']);
+            request.SaleToPOIRequest['PaymentRequest'] = null;
+            request.SaleToPOIRequest['PaymentRequest'] = makePaymentRequest(ISOTimenow,transaction_id,otherData.currency,otherData.amount);
         break;
         case "Reversal":
         break;
