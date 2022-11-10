@@ -135,52 +135,96 @@ app.post('/cardacq',async(req,res)=>{
         amount :req.body.amount
     }
     let cardAcquisitionRequest = makeTerminalRequest("CardAcquisition",req.body.terminalId,req.body.posId,cardAcqusitionData);
-
+    console.log(JSON.stringify(cardAcquisitionRequest,null,4))
     try{
         const terminalApiResponse = await terminalAPI.sync(cardAcquisitionRequest);
-        //process cardAcqData
+        //get cardAlias
+
+
         if(terminalApiResponse!=={}){
+            console.log(JSON.stringify(terminalApiResponse,null,4));
             if(terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.Response.Result==="Success"){
+
+
+                let cardData = null;
+                if(terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.PaymentInstrumentData.CardData.PaymentToken!==undefined){
+                    cardData=terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.PaymentInstrumentData.CardData.PaymentToken.TokenValue;
+                    console.log(cardData);
+                }
+
+                let cardAcqRef = terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.POIData.POITransactionID.TransactionID;
                 //TODO: Take card token and pass to Joffery API for check.
                 //console.log(JSON.stringify(terminalApiResponse,null,4))
+                let fetchLoyaltyAccount = await axios({
+                    method:'POST',
+                    url:'https://swiss-army-kinfe-challenge.herokuapp.com/getPointsBalance/',
+                    data:{
+                        cardAlias:"card001"
+                    }
+                });
 
-                //IF account is not found, ask for registration
-                
-                //else go on for discount and payment
-
-                    //if there is more than 1 account found
-                    let cardAcqRef = terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.POIData.POITransactionID.TransactionID;
-                
+                let selectedAccount = null;
+                let discountedAmount = req.body.amount;
+                if(fetchLoyaltyAccount.data!==undefined && fetchLoyaltyAccount.data.length > 1){
+                    let otherData= {accounts:fetchLoyaltyAccount.data};
                     //Make Input Call for more than 1 account
-                    let InputRequest = makeTerminalRequest("Input",req.body.terminalId);
+                    let InputRequest = makeTerminalRequest("Input",req.body.terminalId,req.body.posId,otherData);
                     //console.log(JSON.stringify(InputRequest,null,4))
                     const inputTerminalApiResponse = await terminalAPI.sync(InputRequest);
-            
+                    console.log(JSON.stringify(inputTerminalApiResponse,null,4));
                     //process Input response
                     if(inputTerminalApiResponse.SaleToPOIResponse.InputResponse.InputResult.Response.Result==="Success"){
-                        //Make Payment with discounted amount based on points
-                        let paymentData = {
-                            currency:req.body.currency,
-                            amount:req.body.amount
-                        }
-
-                        let paymentRequest = makeTerminalRequest("Payment",req.body.terminalId,req.body.posId,paymentData)
-                        console.log(JSON.stringify(paymentRequest,null,4));
-                        paymentRequest['SaleToPOIRequest']['PaymentRequest']['PaymentData']={
-                            CardAcquisitionReference:{
-                                TimeStamp:moment().toISOString(),
-                                TransactionID:cardAcqRef
+                        let selectedIndex = -1; 
+                        inputTerminalApiResponse.SaleToPOIResponse.InputResponse.InputResult.Input.MenuEntryNumber.map((menu,i)=>{
+                            if(menu){
+                                selectedAccount=fetchLoyaltyAccount.data[i];
+                                return;
                             }
+                        });
+                    }
+                }
+
+                if(fetchLoyaltyAccount.data!==undefined && fetchLoyaltyAccount.data.length === 1){
+                    selectedAccount=fetchLoyaltyAccount.data[0];
+                }
+                //Complete phone number verification
+
+                //Ask for redeem consent
+                let consent = false;
+                if(selectedAccount!==null){
+                    let consentRequest = makeTerminalRequest("ConsentInput",req.body.terminalId,req.body.posId,selectedAccount);
+                    //console.log(JSON.stringify(InputRequest,null,4))
+                    const consentInputResponse = await terminalAPI.sync(consentRequest);
+                    if(consentInputResponse.SaleToPOIResponse.InputResponse.InputResult.Response.Result==="Success"){
+                        if(consentInputResponse.SaleToPOIResponse.InputResponse.InputResult.Input.MenuEntryNumber[0]){
+                            consent = true;
                         }
-                        const paymentApiResponse = await terminalAPI.sync(paymentRequest);
-                        res.send(paymentApiResponse);
                     }
-                    else{
-                        res.send({"message":"Unsuccessful Input Request"});
+                 }  
+
+                 if(consent){
+                    let discount=selectedAccount.pointbalance/10;
+                    discountedAmount -= discount;
+                 }
+                
+                //Make Payment with discounted amount based on points
+                let paymentData = {
+                    currency:req.body.currency,
+                    amount:discountedAmount
+                }
+
+                let paymentRequest = makeTerminalRequest("Payment",req.body.terminalId,req.body.posId,paymentData)
+                paymentRequest['SaleToPOIRequest']['PaymentRequest']['PaymentData']={
+                    CardAcquisitionReference:{
+                        TimeStamp:moment().toISOString(),
+                        TransactionID:cardAcqRef
                     }
+                }
+                const paymentApiResponse = await terminalAPI.sync(paymentRequest);
+                //update the points
 
-                    //ASk if wants to redeem points
 
+                res.send(paymentApiResponse);
             }
             else{
                 res.send({"message":"Unsuccessful Card Acquisition"});

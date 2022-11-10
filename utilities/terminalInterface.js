@@ -1,6 +1,6 @@
 const {makePaymentRequest} = require('../data/paymentRequest');
 const {makeCardAcquisitionRequest} = require('../data/cardAcquisitionRequest');
-const {inputRequest} = require('../data/inputRequest');
+const {makeAccountInputRequest,makeConsentRequest} = require('../data/inputRequest');
 const moment = require('moment'); 
 
 const makeTerminalRequest = (MessageCategory,terminalId,posId,otherData) => {
@@ -37,7 +37,12 @@ const makeTerminalRequest = (MessageCategory,terminalId,posId,otherData) => {
         case "Input":
             request.SaleToPOIRequest.MessageHeader.MessageCategory=MessageCategory;
             request.SaleToPOIRequest.MessageHeader.MessageClass="Device";
-            request.SaleToPOIRequest['InputRequest'] = inputRequest;
+            request.SaleToPOIRequest['InputRequest'] = makeAccountInputRequest(otherData['accounts']);
+        break;
+        case "ConsentInput":
+            request.SaleToPOIRequest.MessageHeader.MessageCategory="Input";
+            request.SaleToPOIRequest.MessageHeader.MessageClass="Device";
+            request.SaleToPOIRequest['InputRequest'] = makeConsentRequest(otherData['name'],otherData['pointbalance']);
         break;
         default:
             return false;
