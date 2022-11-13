@@ -57,7 +57,7 @@ const makeConsentRequest =  (name,points) =>  {
                         "Text":"Hi "+name+", You have "+points+" points"
                     },
                     {
-                        "Text":"Do you want to redeem"
+                        "Text":"Do you want to redeem 20 points?"
                     }
                 ]
             },

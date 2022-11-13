@@ -4,6 +4,7 @@ var bodyParser = require('body-parser');
 const moment = require('moment'); 
 const { Client,Config,TerminalLocalAPI, TerminalCloudAPI,} = require('@adyen/api-library');
 const { TerminalApiRequest } = require('@adyen/api-library/lib/src/typings/terminal/models');
+const {queryMockProfile,updateMockProfile} = require('./data/mockPointsProfile');
 const QRCode = require('qrcode');
 const sgMail = require('@sendgrid/mail');
 const axios = require('axios');
@@ -139,12 +140,15 @@ app.post('/cardacq',async(req,res)=>{
     try{
         const terminalApiResponse = await terminalAPI.sync(cardAcquisitionRequest);
         //get cardAlias
+        let useMock = true;
 
+        if(req.body.useMock!==undefined){
+            useMock = req.body.useMock;
+        }
 
         if(terminalApiResponse!=={}){
             console.log(JSON.stringify(terminalApiResponse,null,4));
             if(terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.Response.Result==="Success"){
-
 
                 let cardData = null;
                 if(terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.PaymentInstrumentData.CardData.PaymentToken!==undefined){
@@ -155,17 +159,25 @@ app.post('/cardacq',async(req,res)=>{
                 let cardAcqRef = terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.POIData.POITransactionID.TransactionID;
                 //TODO: Take card token and pass to Joffery API for check.
                 //console.log(JSON.stringify(terminalApiResponse,null,4))
-                let fetchLoyaltyAccount = await axios({
-                    method:'POST',
-                    url:'https://swiss-army-kinfe-challenge.herokuapp.com/getPointsBalance/',
-                    data:{
-                        cardAlias:"card001"
-                    }
-                });
+                let fetchLoyaltyAccount = null;
 
+                if(useMock){
+                    fetchLoyaltyAccount = queryMockProfile(cardData);
+                }
+                else{
+                    fetchLoyaltyAccount = await axios({
+                        method:'POST',
+                        url:'https://swiss-army-kinfe-challenge.herokuapp.com/getPointsBalance/',
+                        data:{
+                            cardAlias:"card001"
+                        }
+                    });
+                }
+                
+                let selectedIndex = -1; 
                 let selectedAccount = null;
                 let discountedAmount = req.body.amount;
-                if(fetchLoyaltyAccount.data!==undefined && fetchLoyaltyAccount.data.length > 1){
+                if(fetchLoyaltyAccount!==null && fetchLoyaltyAccount.data!==undefined && fetchLoyaltyAccount.data.length > 1){
                     let otherData= {accounts:fetchLoyaltyAccount.data};
                     //Make Input Call for more than 1 account
                     let InputRequest = makeTerminalRequest("Input",req.body.terminalId,req.body.posId,otherData);
@@ -174,9 +186,9 @@ app.post('/cardacq',async(req,res)=>{
                     console.log(JSON.stringify(inputTerminalApiResponse,null,4));
                     //process Input response
                     if(inputTerminalApiResponse.SaleToPOIResponse.InputResponse.InputResult.Response.Result==="Success"){
-                        let selectedIndex = -1; 
                         inputTerminalApiResponse.SaleToPOIResponse.InputResponse.InputResult.Input.MenuEntryNumber.map((menu,i)=>{
                             if(menu){
+                                selectedIndex=i;
                                 selectedAccount=fetchLoyaltyAccount.data[i];
                                 return;
                             }
@@ -185,6 +197,7 @@ app.post('/cardacq',async(req,res)=>{
                 }
 
                 if(fetchLoyaltyAccount.data!==undefined && fetchLoyaltyAccount.data.length === 1){
+                    selectedIndex=0;
                     selectedAccount=fetchLoyaltyAccount.data[0];
                 }
                 //Complete phone number verification
@@ -203,7 +216,7 @@ app.post('/cardacq',async(req,res)=>{
                  }  
 
                  if(consent){
-                    let discount=selectedAccount.pointbalance/10;
+                    let discount= 20 ;
                     discountedAmount -= discount;
                  }
                 
@@ -222,8 +235,29 @@ app.post('/cardacq',async(req,res)=>{
                 }
                 const paymentApiResponse = await terminalAPI.sync(paymentRequest);
                 //update the points
-
-
+                if(selectedAccount!==null && consent!==false){
+                    if(paymentApiResponse.SaleToPOIResponse!==undefined){
+                        if(paymentApiResponse.SaleToPOIResponse.PaymentResponse.Response.Result!==undefined){
+                            if(paymentApiResponse.SaleToPOIResponse.PaymentResponse.Response.Result==="Success"){
+                                if(useMock){
+                                    updateMockProfile(cardData,selectedIndex,selectedAccount.pointbalance-20);
+                                }
+                                else{
+                                    await axios({
+                                        method:'POST',
+                                        url:'https://swiss-army-kinfe-challenge.herokuapp.com/updatePointsBalance/',
+                                        data:{
+                                            points:-20,
+                                            cardAlias:cardData,
+                                            phoneNumber:selectedAccount.phoneNumber
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                
                 res.send(paymentApiResponse);
             }
             else{
