@@ -18,6 +18,13 @@ let MockProfilePoints = [
                 "phonenumber":"0123456987",
                 "pointbalance":"150"
             }
+        ],
+        "A594984856773903":[
+            {
+                "name":"Ben",
+                "phonenumber":"87654321",
+                "pointbalance":"1560"
+            }
         ]
     }
 ]
