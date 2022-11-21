@@ -2,14 +2,9 @@ let MockProfilePoints = [
     {
         "P632236034034292":[
             {
-                "name":"Adam",
+                "name":"Jack",
                 "phonenumber":"0123456987",
                 "pointbalance":"400"
-            },
-            {
-                "name":"Adam Second",
-                "phonenumber":"0123456788",
-                "pointbalance":"260"
             },
         ],
         "F490875278278817":[
