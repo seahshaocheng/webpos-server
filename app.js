@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 var bodyParser = require('body-parser');
 const moment = require('moment'); 
-const { Client,Config,TerminalLocalAPI, TerminalCloudAPI,} = require('@adyen/api-library');
+const { Client,Config,TerminalLocalAPI, TerminalCloudAPI,CheckoutAPI} = require('@adyen/api-library');
 const { TerminalApiRequest } = require('@adyen/api-library/lib/src/typings/terminal/models');
 const {queryMockProfile,updateMockProfile} = require('./data/mockPointsProfile');
 const QRCode = require('qrcode');
@@ -10,6 +10,8 @@ const sgMail = require('@sendgrid/mail');
 const axios = require('axios');
 const { terminal } = require('@adyen/api-library/lib/src/typings');
 const {makeTerminalRequest} = require('./utilities/terminalInterface');
+
+let pendingOrders = [];
 
 const app = express();
 
@@ -61,13 +63,77 @@ app.post('/makePayment', async (req,res)=>{
 
 });
 
+const initaliseClient = (adyenENV,region) =>{
+    const config = new Config();
+    if(adyenENV==="LIVE"){
+        config.apiKey = process.env.APIKEY_LIVE;
+        config.merchantAccount = process.env.MERCHANT_ACCOUNT;
+        switch(region){
+            case "APSE":
+                config.checkoutEndpoint = process.env.APSEAPIURL;
+            break;
+            case "US":
+                config.checkoutEndpoint = process.env.USAPIURL;
+            break;
+            case "AU":
+                config.checkoutEndpoint = process.env.USAPIURL;
+            break;
+            default:
+                console.log("Chooing default endpoint");
+                config.checkoutEndpoint = process.env.DEFAULTREGIONAPIURL;
+        }
+    }
+    else{
+        config.apiKey = process.env.APIKEY;
+        config.merchantAccount = process.env.MERCHANT_ACCOUNT;
+    }
+
+    console.log(config.merchantAccount);
+    const client = new Client({ config });
+    if(adyenENV === "TEST"){
+        client.setEnvironment("TEST");
+    }
+
+    const checkout = new CheckoutAPI(client);
+    return checkout;
+}
+
+//sessions
+app.post("/sessions",async(req, res)=> {
+    const RequestBody = req.body;
+    let adyenENV ="TEST";
+    let region = "TEST";
+    let checkout = initaliseClient(adyenENV,region);
+    RequestBody.merchantAccount = process.env.MERCHANT_ACCOUNT;
+    pendingOrders.push({
+        reference:RequestBody.reference
+    })
+    console.log(RequestBody);
+    try{
+        let checkoutSessionResponse = await checkout.sessions(RequestBody);
+        console.log("session data");
+        console.log(checkoutSessionResponse);
+        res.json([checkoutSessionResponse,RequestBody.reference]);
+    }
+    catch(error){
+        console.log(error);
+        res.status(500).send({
+            error
+        })
+    }
+});
+
+app.post("notifications",async (req,res)=>{
+
+});
+
 // email receipt endpoint
 app.post('/emailReceipt',async(req,res)=>{
 
     let orderData = JSON.stringify(req.body.orderData);
     
     try{
-        let base64code = await QRCode.toDataURL(orderData);
+        let base64code = await QRCode.toDataURL(orderData.pspReference);
         sgMail.setApiKey(process.env.SENDGRID_API_KEY);
         let qrData = base64code.split(",");
 
