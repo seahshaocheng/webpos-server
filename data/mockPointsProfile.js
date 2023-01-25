@@ -1,28 +1,39 @@
 let MockProfilePoints = [
     {
-        "P632236034034292":[
+        "M469509594859802":[
             {
                 "name":"Jack",
                 "phonenumber":"0123456987",
                 "pointbalance":"400"
             },
-        ],
-        "F490875278278817":[
             {
                 "name":"Mark",
                 "phonenumber":"0123456987",
                 "pointbalance":"150"
             }
-        ],
-        "A594984856773903":[
-            {
-                "name":"Ben",
-                "phonenumber":"87654321",
-                "pointbalance":"1560"
-            }
         ]
     }
 ]
+
+const insertProfile = (cardAlias,profileName,points) => {
+    if(MockProfilePoints[0][cardAlias]!==undefined){
+        MockProfilePoints[0][cardAlias].push({
+            name:profileName,
+            phonenumber:"1231231293801",
+            pointbalance:points
+        })
+    }
+    else{
+        MockProfilePoints[0][cardAlias] = [];
+        MockProfilePoints[0][cardAlias].push({
+            name:profileName,
+            phonenumber:"1231231293801",
+            pointbalance:points
+        })
+    }
+    console.log(MockProfilePoints);
+    return true;
+}
 
 const updateMockProfile = (cardAlias,selectedIndex,points) => {
     if(MockProfilePoints[0][cardAlias]!==undefined){
@@ -36,4 +47,4 @@ const queryMockProfile =  (cardAlias) =>  {
     return {data:MockProfilePoints[0][cardAlias]}
 }
 
-module.exports = {queryMockProfile,updateMockProfile}
+module.exports = {queryMockProfile,updateMockProfile,insertProfile}

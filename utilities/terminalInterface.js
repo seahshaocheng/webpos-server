@@ -1,6 +1,6 @@
 const {makePaymentRequest} = require('../data/paymentRequest');
 const {makeCardAcquisitionRequest} = require('../data/cardAcquisitionRequest');
-const {makeAccountInputRequest,makeConsentRequest} = require('../data/inputRequest');
+const {makeAccountInputRequest,makeConsentRequest,RegisterAccount,makeRegisterConsent} = require('../data/inputRequest');
 const moment = require('moment'); 
 
 const makeTerminalRequest = (MessageCategory,terminalId,posId,otherData) => {
@@ -33,6 +33,16 @@ const makeTerminalRequest = (MessageCategory,terminalId,posId,otherData) => {
             request.SaleToPOIRequest.MessageHeader.MessageCategory=MessageCategory;
             request.SaleToPOIRequest.MessageHeader.MessageClass="Service";
             request.SaleToPOIRequest['CardAcquisitionRequest'] = makeCardAcquisitionRequest(ISOTimenow,transaction_id,otherData['amount']);
+        break;
+        case "RegisterAccount":
+            request.SaleToPOIRequest.MessageHeader.MessageCategory="Input";
+            request.SaleToPOIRequest.MessageHeader.MessageClass="Device";
+            request.SaleToPOIRequest['InputRequest'] = RegisterAccount();
+        break;
+        case "RegisterConsentInput":
+            request.SaleToPOIRequest.MessageHeader.MessageCategory="Input";
+            request.SaleToPOIRequest.MessageHeader.MessageClass="Device";
+            request.SaleToPOIRequest['InputRequest'] = makeRegisterConsent();
         break;
         case "Input":
             request.SaleToPOIRequest.MessageHeader.MessageCategory=MessageCategory;
