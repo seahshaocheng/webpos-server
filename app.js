@@ -4,7 +4,7 @@ var bodyParser = require('body-parser');
 const moment = require('moment'); 
 const { Client,Config,TerminalLocalAPI, TerminalCloudAPI,CheckoutAPI} = require('@adyen/api-library');
 const { TerminalApiRequest } = require('@adyen/api-library/lib/src/typings/terminal/models');
-const {queryMockProfile,updateMockProfile} = require('./data/mockPointsProfile');
+const {queryMockProfile,updateMockProfile,insertProfile} = require('./data/mockPointsProfile');
 const QRCode = require('qrcode');
 const sgMail = require('@sendgrid/mail');
 const axios = require('axios');
@@ -213,13 +213,11 @@ app.post('/cardacq',async(req,res)=>{
         }
 
         if(terminalApiResponse!=={}){
-            console.log(JSON.stringify(terminalApiResponse,null,4));
             if(terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.Response.Result==="Success"){
 
                 let cardData = null;
                 if(terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.PaymentInstrumentData.CardData.PaymentToken!==undefined){
                     cardData=terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.PaymentInstrumentData.CardData.PaymentToken.TokenValue;
-                    console.log(cardData);
                 }
 
                 let cardAcqRef = terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.POIData.POITransactionID.TransactionID;
@@ -243,22 +241,39 @@ app.post('/cardacq',async(req,res)=>{
                 let selectedIndex = -1; 
                 let selectedAccount = null;
                 let discountedAmount = req.body.amount;
+                let register = false;
+                
                 if(fetchLoyaltyAccount!==null && fetchLoyaltyAccount.data!==undefined && fetchLoyaltyAccount.data.length > 1){
                     let otherData= {accounts:fetchLoyaltyAccount.data};
                     //Make Input Call for more than 1 account
                     let InputRequest = makeTerminalRequest("Input",req.body.terminalId,req.body.posId,otherData);
                     //console.log(JSON.stringify(InputRequest,null,4))
                     const inputTerminalApiResponse = await terminalAPI.sync(InputRequest);
-                    console.log(JSON.stringify(inputTerminalApiResponse,null,4));
                     //process Input response
                     if(inputTerminalApiResponse.SaleToPOIResponse.InputResponse.InputResult.Response.Result==="Success"){
                         inputTerminalApiResponse.SaleToPOIResponse.InputResponse.InputResult.Input.MenuEntryNumber.map((menu,i)=>{
                             if(menu){
                                 selectedIndex=i;
                                 selectedAccount=fetchLoyaltyAccount.data[i];
+                                if(selectedAccount===undefined){
+                                    console.log("seleccted no");
+                                    selectedAccount = null;
+                                    register = true;
+                                }
                                 return;
                             }
                         });
+                    }
+                }
+
+                if(fetchLoyaltyAccount.data === undefined){
+                    let registerConsentRequest = makeTerminalRequest("RegisterConsentInput",req.body.terminalId,req.body.posId,selectedAccount);
+                    //console.log(JSON.stringify(InputRequest,null,4))
+                    const registerConsentResponse = await terminalAPI.sync(registerConsentRequest);
+                    if(registerConsentResponse.SaleToPOIResponse.InputResponse.InputResult.Response.Result==="Success"){
+                        if(registerConsentResponse.SaleToPOIResponse.InputResponse.InputResult.Input.MenuEntryNumber[0]){
+                            register = true;
+                        }
                     }
                 }
 
@@ -267,6 +282,20 @@ app.post('/cardacq',async(req,res)=>{
                     selectedAccount=fetchLoyaltyAccount.data[0];
                 }
                 //Complete phone number verification
+                if(selectedAccount===null && register){
+                    let registerAccountRequest = makeTerminalRequest("RegisterAccount",req.body.terminalId,req.body.posId,selectedAccount);
+                    console.log(JSON.stringify(registerAccountRequest,null,4));
+                    const registerAccountResponse = await terminalAPI.sync(registerAccountRequest);
+                    console.log(JSON.stringify(registerAccountResponse,null,4));
+                    if(registerAccountResponse.SaleToPOIResponse.InputResponse.InputResult.Response.Result==="Success"){
+                        if(registerAccountResponse.SaleToPOIResponse.InputResponse.InputResult.Input.TextInput.length>0){
+                            let profilename = registerAccountResponse.SaleToPOIResponse.InputResponse.InputResult.Input.TextInput;
+                            if(useMock){
+                                insertProfile(cardData,profilename,req.body.amount);
+                            }
+                        }
+                    }
+                }
 
                 //Ask for redeem consent
                 let consent = false;
@@ -279,7 +308,8 @@ app.post('/cardacq',async(req,res)=>{
                             consent = true;
                         }
                     }
-                 }  
+                 } 
+
 
                  if(consent){
                     let discount= 20 ;
