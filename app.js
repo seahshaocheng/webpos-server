@@ -157,11 +157,12 @@ app.post("/notifications",async (req,res)=>{
                 let order = pendingOrders.find(x => x.reference === orderData.notificationItems[0].NotificationRequestItem.merchantReference);
                 if(order!==undefined){
                     email = order.email;
+                    order.pspReference = orderData.notificationItems[0].NotificationRequestItem.pspReference;
                 }
                 break;
             case "REFUND":
                 sendEmail=true;
-                let originalorder = pendingOrders.find(x => x.reference === orderData.notificationItems[0].NotificationRequestItem.merchantReference);
+                let originalorder = pendingOrders.find(x => x.pspReference === orderData.notificationItems[0].NotificationRequestItem.originalReference);
                 if(originalorder!==undefined){
                     email = originalorder.email;
                 }
@@ -169,6 +170,10 @@ app.post("/notifications",async (req,res)=>{
                 break;
             case "CANCEL_OR_REFUND":
                 sendEmail=true;
+                let originalorder1 = pendingOrders.find(x => x.pspReference === orderData.notificationItems[0].NotificationRequestItem.originalReference);
+                if(originalorder1!==undefined){
+                    email = originalorder1.email;
+                }
                 template_id= "d-a2732940b7b34a6e885a56e384199e33"
                 break;
         }
