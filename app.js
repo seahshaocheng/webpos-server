@@ -49,12 +49,23 @@ app.post('/makePayment', async (req,res)=>{
     const terminalAPI = new TerminalCloudAPI(client);
     let paymentRequestData = {
         currency:req.body.currency,
-        amount:req.body.amount
+        amount:req.body.amount,
+        transaction_id: "Mark-POS-"+moment.utc().format("YYYYMMDDss")
     }
+
+    let OrderDetails = {
+        reference:paymentRequestData.transaction_id,
+        email:req.body.shopperEmail
+    }
+
+    pendingOrders.push(OrderDetails);
     let paymentRequest1 = makeTerminalRequest("Payment",req.body.terminalId,req.body.posId,paymentRequestData);
 
     try{
+        console.log("sending payment request");
+        console.log(paymentRequest1);
         const terminalApiResponse = await terminalAPI.sync(paymentRequest1);
+        console.log(terminalApiResponse);
         res.send(terminalApiResponse);
     }
     catch(error){
@@ -105,14 +116,18 @@ app.post("/sessions",async(req, res)=> {
     let region = "TEST";
     let checkout = initaliseClient(adyenENV,region);
     RequestBody.merchantAccount = process.env.MERCHANT_ACCOUNT;
-    pendingOrders.push({
-        reference:RequestBody.reference
-    })
+    RequestBody.reference = "Mark_ECOMDEMODEFAULT_"+moment.utc().format("YYYYMMDDhhmmss");
+    let OrderDetails = {
+        reference:RequestBody.reference,
+        email:RequestBody.shopperEmail
+    }
+    pendingOrders.push(OrderDetails);
+    delete RequestBody.shopperEmail;
     console.log(RequestBody);
     try{
         let checkoutSessionResponse = await checkout.sessions(RequestBody);
         console.log("session data");
-        console.log(checkoutSessionResponse);
+        console.log([checkoutSessionResponse,RequestBody.reference]);
         res.json([checkoutSessionResponse,RequestBody.reference]);
     }
     catch(error){
@@ -123,65 +138,96 @@ app.post("/sessions",async(req, res)=> {
     }
 });
 
-app.post("notifications",async (req,res)=>{
+app.post("/notifications",async (req,res)=>{
+    let orderData = req.body;
+    console.log("receiving webhook");
+    console.log(JSON.stringify(orderData, null, 4));
+    try{
+        let base64code = await QRCode.toDataURL(orderData.notificationItems[0].NotificationRequestItem.pspReference);
+        sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+        let qrData = base64code.split(",");
 
+        let sendEmail = false;
+        let email = null;
+        let template_id= "d-f939187424b04cd7abd1dfca87cba8ba";
+
+        switch(orderData.notificationItems[0].NotificationRequestItem.eventCode){
+            case "AUTHORISATION":
+                sendEmail=true;
+                let order = pendingOrders.find(x => x.reference === orderData.notificationItems[0].NotificationRequestItem.merchantReference);
+                if(order!==undefined){
+                    email = order.email;
+                }
+                break;
+            case "REFUND":
+                sendEmail=true;
+                let originalorder = pendingOrders.find(x => x.reference === orderData.notificationItems[0].NotificationRequestItem.merchantReference);
+                if(originalorder!==undefined){
+                    email = originalorder.email;
+                }
+                template_id= "d-a2732940b7b34a6e885a56e384199e33"
+                break;
+            case "CANCEL_OR_REFUND":
+                sendEmail=true;
+                template_id= "d-a2732940b7b34a6e885a56e384199e33"
+                break;
+        }
+        console.log("Sending email to "+email);
+        if(sendEmail && email !==null){
+            const emailData = {
+                from: {
+                    email:"demo@markseah.com",
+                    name: 'Adyen SG IM Demo'
+                },
+                personalizations:[
+                    {
+                        to:[
+                            {
+                                email
+                            }
+                        ],
+                        dynamic_template_data:{
+                            order_number:orderData.notificationItems[0].NotificationRequestItem.merchantReference,
+                            pspReference:orderData.notificationItems[0].NotificationRequestItem.pspReference,
+                            amount:orderData.notificationItems[0].NotificationRequestItem.amount.currency+" "+(Number(orderData.notificationItems[0].NotificationRequestItem.amount.value)/100),
+                            receipt:true,
+                            orderqr:"<img alt='Order QR' src='"+base64code+"' width='100' height='100'/>"
+                        }
+                    }
+                ],
+                subject: 'Your Example Order Confirmation',
+                template_id,
+                attachments:[
+                    {
+                        filename:"testqrcode.png",
+                        content:qrData[1],
+                        content_id:"orderqrcode"
+                    }
+                ]
+            }
+              sgMail
+                .send(emailData)
+                .then(() => {
+                  console.log('Email sent');
+                })
+                .catch((error) => {
+                  console.error(JSON.stringify(error));
+                  console.log("Something went wrong went sending receipt to customer email"); 
+                });
+        }
+        res.send("[accepted]");
+    }
+    catch(error){
+        console.log(error); 
+        console.log("Something went wrong went sending receipt to customer email"); 
+        res.send("[accepted]");
+    }
 });
 
 // email receipt endpoint
 app.post('/emailReceipt',async(req,res)=>{
-
-    let orderData = JSON.stringify(req.body.orderData);
-    
-    try{
-        let base64code = await QRCode.toDataURL(orderData.pspReference);
-        sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-        let qrData = base64code.split(",");
-
-        const emailData = {
-            from: {
-                email: 'markdev.seah@gmail.com',
-                name: 'Adyen SG WebPOS'
-            },
-            personalizations:[
-                {
-                    to:[
-                        {
-                            email:req.body.customerEmail
-                        }
-                    ],
-                    dynamic_template_data:{
-                        items:req.body.orderData.items,
-                        receipt:true,
-                        orderqr:"<img alt='Order QR' src='"+base64code+"' width='100' height='100'/>"
-                    }
-                }
-            ],
-            subject: 'Your Example Order Confirmation',
-            template_id:"d-f939187424b04cd7abd1dfca87cba8ba",
-            attachments:[
-                {
-                    filename:"testqrcode.png",
-                    content:qrData[1],
-                    content_id:"orderqrcode"
-                }
-            ]
-        }
-
-          sgMail
-            .send(emailData)
-            .then(() => {
-              console.log('Email sent');
-              res.send({msg:"Receipt successfully sent"});
-            })
-            .catch((error) => {
-              console.error(JSON.stringify(error))
-              res.status(500).send({msg:"Something went wrong went sending receipt to customer email"});
-            });
-    }
-    catch(error){
-        console.log(error);
-        res.status(500).send({msg:"Something went wrong went sending receipt to customer email"});
-    }
+    console.log(pendingOrders.find(x => x.reference === req.body.reference));
+    res.status(200).send(pendingOrders);
 });
 
 //Reversal endpoint
@@ -426,10 +472,11 @@ app.post('/fetchStores',async(req,res)=>{
         fetchStores.data.stores.map((store,i)=>{
             availableStores.push(store.store);
         });
-
+        console.log(availableStores);
         res.send(availableStores);
     }
     catch(e){
+        console.log(e);
         res.status(500).send(e);
     }
 });
