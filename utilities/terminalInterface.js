@@ -25,14 +25,14 @@ const makeTerminalRequest = (MessageCategory,terminalId,posId,otherData) => {
             request.SaleToPOIRequest.MessageHeader.MessageCategory=MessageCategory;
             request.SaleToPOIRequest.MessageHeader.MessageClass="Service";
             request.SaleToPOIRequest['PaymentRequest'] = null;
-            request.SaleToPOIRequest['PaymentRequest'] = makePaymentRequest(ISOTimenow,transaction_id,otherData.currency,otherData.amount);
+            request.SaleToPOIRequest['PaymentRequest'] = makePaymentRequest(ISOTimenow,otherData.transaction_id,otherData.currency,otherData.amount);
         break;
         case "Reversal":
         break;
         case "CardAcquisition":
             request.SaleToPOIRequest.MessageHeader.MessageCategory=MessageCategory;
             request.SaleToPOIRequest.MessageHeader.MessageClass="Service";
-            request.SaleToPOIRequest['CardAcquisitionRequest'] = makeCardAcquisitionRequest(ISOTimenow,transaction_id,otherData['amount']);
+            request.SaleToPOIRequest['CardAcquisitionRequest'] = makeCardAcquisitionRequest(ISOTimenow,otherData.transaction_id,otherData['amount']);
         break;
         case "RegisterAccount":
             request.SaleToPOIRequest.MessageHeader.MessageCategory="Input";
