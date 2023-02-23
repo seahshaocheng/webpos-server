@@ -10,6 +10,7 @@ const sgMail = require('@sendgrid/mail');
 const axios = require('axios');
 const { terminal } = require('@adyen/api-library/lib/src/typings');
 const {makeTerminalRequest} = require('./utilities/terminalInterface');
+const cron = require('node-cron');
 
 let pendingOrders = [];
 
@@ -556,5 +557,9 @@ app.post('/fetchTerminals',async(req,res)=>{
 
 app.listen(process.env.PORT || 3000, () => {
     console.log("Merchant Server is live at "+process.env.PORT);
+    cron.schedule('*/25 * * * *', () => {
+        console.log( "Keeping Merchant Server is alive at "+process.env.PORT);
+        axios.get('https://webpos-server.herokuapp.com/');
+      })
   }
 );
