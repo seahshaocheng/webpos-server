@@ -151,6 +151,7 @@ app.post("/notifications",async (req,res)=>{
         let sendEmail = false;
         let email = null;
         let template_id= "d-f939187424b04cd7abd1dfca87cba8ba";
+        let dynamic_template_data = null;
 
         switch(orderData.notificationItems[0].NotificationRequestItem.eventCode){
             case "AUTHORISATION":
@@ -159,6 +160,14 @@ app.post("/notifications",async (req,res)=>{
                 if(order!==undefined){
                     email = order.email;
                     order.pspReference = orderData.notificationItems[0].NotificationRequestItem.pspReference;
+                    order.amount = orderData.notificationItems[0].NotificationRequestItem.amount.currency+" "+(Number(orderData.notificationItems[0].NotificationRequestItem.amount.value)/100);
+                    dynamic_template_data={
+                        order_number:orderData.notificationItems[0].NotificationRequestItem.merchantReference,
+                        pspReference:orderData.notificationItems[0].NotificationRequestItem.pspReference,
+                        amount:orderData.notificationItems[0].NotificationRequestItem.amount.currency+" "+(Number(orderData.notificationItems[0].NotificationRequestItem.amount.value)/100),
+                        receipt:true,
+                        orderqr:"<img alt='Order QR' src='"+base64code+"' width='100' height='100'/>"
+                    }
                 }
                 break;
             case "REFUND":
@@ -192,13 +201,7 @@ app.post("/notifications",async (req,res)=>{
                                 email
                             }
                         ],
-                        dynamic_template_data:{
-                            order_number:orderData.notificationItems[0].NotificationRequestItem.merchantReference,
-                            pspReference:orderData.notificationItems[0].NotificationRequestItem.pspReference,
-                            amount:orderData.notificationItems[0].NotificationRequestItem.amount.currency+" "+(Number(orderData.notificationItems[0].NotificationRequestItem.amount.value)/100),
-                            receipt:true,
-                            orderqr:"<img alt='Order QR' src='"+base64code+"' width='100' height='100'/>"
-                        }
+                        dynamic_template_data
                     }
                 ],
                 subject: 'Your Example Order Confirmation',
@@ -232,8 +235,47 @@ app.post("/notifications",async (req,res)=>{
 
 // email receipt endpoint
 app.post('/emailReceipt',async(req,res)=>{
-    console.log(pendingOrders.find(x => x.reference === req.body.reference));
-    res.status(200).send(pendingOrders);
+    //console.log(pendingOrders.find(x => x.reference === req.body.reference));
+    let originalOrder = pendingOrders.find(x => x.pspReference === req.body.pspReference)
+    let dynamic_template_data={
+        order_number:originalOrder.reference,
+        pspReference:originalOrder.pspReference,
+        amount:originalOrder.amount,
+        receipt:true,
+    }
+
+    let  email = originalOrder.email;
+
+    //res.status(200).send(pendingOrders);
+    const emailData = {
+        from: {
+            email:"demo@markseah.com",
+            name: 'Adyen SG IM Demo'
+        },
+        personalizations:[
+            {
+                to:[
+                    {
+                        email
+                    }
+                ],
+                dynamic_template_data
+            }
+        ],
+        subject: 'Refund Successful',
+        template_id:"d-a2732940b7b34a6e885a56e384199e33"
+    }
+      sgMail
+        .send(emailData)
+        .then(() => {
+            res.sendStatus(200);
+          console.log('Email sent');
+        })
+        .catch((error) => {
+            res.sendStatus(500);
+            console.error(JSON.stringify(error));
+            console.log("Something went wrong went sending receipt to customer email"); 
+        });
 });
 
 //Reversal endpoint
