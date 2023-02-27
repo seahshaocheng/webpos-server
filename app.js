@@ -236,6 +236,7 @@ app.post("/notifications",async (req,res)=>{
 // email receipt endpoint
 app.post('/emailReceipt',async(req,res)=>{
     //console.log(pendingOrders.find(x => x.reference === req.body.reference));
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
     let originalOrder = pendingOrders.find(x => x.pspReference === req.body.pspReference)
     let dynamic_template_data={
         order_number:originalOrder.reference,
@@ -272,6 +273,68 @@ app.post('/emailReceipt',async(req,res)=>{
           console.log('Email sent');
         })
         .catch((error) => {
+            res.sendStatus(500);
+            console.error(JSON.stringify(error));
+            console.log("Something went wrong went sending receipt to customer email"); 
+        });
+});
+
+app.post('/emailSelfie',async(req,res)=>{
+    //console.log(pendingOrders.find(x => x.reference === req.body.reference));
+    let customerEmail = req.body.customerEmail;
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    let dynamic_template_data={
+        name:req.body.name,
+        title:req.body.title,
+        email:req.body.contactEmail,
+        contact:req.body.contact,
+        photo:"<img alt='Selfie' src='"+req.body.photo+"' width='100' height='100'/>",
+        receipt:true,
+    }
+
+    let  ccEmail = req.body.contactEmail;
+    let photoData = req.body.photo.split(",");
+    const emailData = {
+        from: {
+            email:"demo@markseah.com",
+            name: 'Adyen SG IM Demo'
+        },
+        personalizations:[
+            {
+                to:[
+                    {
+                        email:customerEmail
+                    }
+                ],
+                cc: [
+                    {
+                        email:ccEmail
+                    }
+                ],
+                dynamic_template_data
+            },
+            
+        ],
+        subject: 'Thank you, here is the selfie',
+        template_id:"d-57e6d887ad5943ccb618838efb6a2b10",
+        attachments:[
+            {
+                filename:"demoselfie.png",
+                content:photoData[1],
+                content_id:"orderqrcode"
+            }
+        ]
+    }
+    console.log(JSON.stringify(emailData,0,4));
+      sgMail
+        .send(emailData)
+        .then(() => {
+            res.sendStatus(200);
+          console.log('Email sent');
+        })
+        .catch((error) => {
+
+        throw error;
             res.sendStatus(500);
             console.error(JSON.stringify(error));
             console.log("Something went wrong went sending receipt to customer email"); 
