@@ -270,7 +270,7 @@ app.post('/emailReceipt',async(req,res)=>{
         .send(emailData)
         .then(() => {
             res.sendStatus(200);
-          console.log('Email sent');
+            console.log('Email sent');
         })
         .catch((error) => {
             res.sendStatus(500);
@@ -288,7 +288,7 @@ app.post('/emailSelfie',async(req,res)=>{
         title:req.body.title,
         email:req.body.contactEmail,
         contact:req.body.contact,
-        photo:"<img alt='Selfie' src='"+req.body.photo+"' width='100' height='100'/>",
+        photo:"<img alt='Selfie' src='"+req.body.photo+"' width='350'/>",
         receipt:true,
     }
 
@@ -315,7 +315,7 @@ app.post('/emailSelfie',async(req,res)=>{
             },
             
         ],
-        subject: 'Thank you, here is the selfie',
+        subject: 'Thank you, here\'s the selfie',
         template_id:"d-57e6d887ad5943ccb618838efb6a2b10",
         attachments:[
             {
@@ -329,15 +329,13 @@ app.post('/emailSelfie',async(req,res)=>{
       sgMail
         .send(emailData)
         .then(() => {
+            console.log('Email sent');
             res.sendStatus(200);
-          console.log('Email sent');
         })
         .catch((error) => {
-
-        throw error;
-            res.sendStatus(500);
             console.error(JSON.stringify(error));
             console.log("Something went wrong went sending receipt to customer email"); 
+            res.sendStatus(500);
         });
 });
 
@@ -356,6 +354,7 @@ app.post('/cardacq',async(req,res)=>{
 
     const terminalAPI = new TerminalCloudAPI(client);
     let cardAcqusitionData = {
+        transaction_id:"Mark-POS-"+moment.utc().format("YYYYMMDDss"),
         amount :req.body.amount
     }
     let cardAcquisitionRequest = makeTerminalRequest("CardAcquisition",req.body.terminalId,req.body.posId,cardAcqusitionData);
@@ -368,6 +367,8 @@ app.post('/cardacq',async(req,res)=>{
         if(req.body.useMock!==undefined){
             useMock = req.body.useMock;
         }
+        console.log("trying...");
+        console.log(JSON.stringify(terminalApiResponse,null,4));
 
         if(terminalApiResponse!=={}){
             if(terminalApiResponse.SaleToPOIResponse.CardAcquisitionResponse.Response.Result==="Success"){
@@ -423,7 +424,7 @@ app.post('/cardacq',async(req,res)=>{
                     }
                 }
 
-                if(fetchLoyaltyAccount.data === undefined){
+                if(fetchLoyaltyAccount === null){
                     let registerConsentRequest = makeTerminalRequest("RegisterConsentInput",req.body.terminalId,req.body.posId,selectedAccount);
                     //console.log(JSON.stringify(InputRequest,null,4))
                     const registerConsentResponse = await terminalAPI.sync(registerConsentRequest);
@@ -434,7 +435,7 @@ app.post('/cardacq',async(req,res)=>{
                     }
                 }
 
-                if(fetchLoyaltyAccount.data!==undefined && fetchLoyaltyAccount.data.length === 1){
+                if(fetchLoyaltyAccount!==null && fetchLoyaltyAccount.data.length === 1){
                     selectedIndex=0;
                     selectedAccount=fetchLoyaltyAccount.data[0];
                 }
