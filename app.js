@@ -110,6 +110,44 @@ const initaliseClient = (adyenENV,region) =>{
     return checkout;
 }
 
+app.post("/paymentLink", async (req,res)=>{
+
+    let adyenENV ="TEST";
+    let region = "TEST";
+    let checkout = initaliseClient(adyenENV,region);
+    let paymentRequest = {
+        reference: "Mark_PBLDEMO_"+moment.utc().format("YYYYMMDDhhmmss"),
+        amount:{
+            currency:req.body.amount.currency,
+            value:req.body.amount.value
+        },
+        shopperReference:req.body.shopperEmail,
+        shopperEmail:req.body.shopperEmail,
+        countryCode:req.body.countryCode,
+        merchantAccount:process.env.MERCHANT_ACCOUNT,
+        returnUrl:req.body.returnUrl,
+        merchantOrderReference:"Mark_PBL_"+moment.utc().format("YYYYMMDDhhmmss"),
+        shopperStatement:"Mark PBL ECOM",
+        shopperLocale:"en_GB"
+    }
+    try{
+        let paymentResponse = await checkout.paymentLinks(paymentRequest);
+        console.log(paymentResponse);
+
+        if(paymentResponse.errorCpde === undefined){
+            let base64code = await QRCode.toDataURL(paymentResponse.url);
+            res.send(base64code);
+        }
+
+
+       
+    }
+    catch(error){
+        console.log(error);
+    }
+
+});
+
 //sessions
 app.post("/sessions",async(req, res)=> {
     const RequestBody = req.body;
