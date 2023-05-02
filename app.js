@@ -115,6 +115,7 @@ app.post("/paymentLink", async (req,res)=>{
     let adyenENV ="TEST";
     let region = "TEST";
     let checkout = initaliseClient(adyenENV,region);
+
     let paymentRequest = {
         reference: "Mark_PBLDEMO_"+moment.utc().format("YYYYMMDDhhmmss"),
         amount:{
@@ -128,15 +129,31 @@ app.post("/paymentLink", async (req,res)=>{
         returnUrl:req.body.returnUrl,
         merchantOrderReference:"Mark_PBL_"+moment.utc().format("YYYYMMDDhhmmss"),
         shopperStatement:"Mark PBL ECOM",
-        shopperLocale:"en_GB"
+        shopperLocale:"en_GB",
+        storePaymentMethodMode: "askForConsent",
+        recurringProcessingModel: "CardOnFile"
     }
+
+    if(req.body.theme_id!==null && req.body.theme_id!==undefined){
+        paymentRequest.themeId=req.body.theme_id;
+    }
+
+    let OrderDetails = {
+        reference:paymentRequest.reference,
+        email:req.body.shopperEmail
+    }
+
+    pendingOrders.push(OrderDetails);
+
     try{
         let paymentResponse = await checkout.paymentLinks(paymentRequest);
         console.log(paymentResponse);
 
-        if(paymentResponse.errorCpde === undefined){
+        let paymentLinkResponse = {}
+        if(paymentResponse.errorCode === undefined){
             let base64code = await QRCode.toDataURL(paymentResponse.url);
-            res.send(base64code);
+            paymentLinkResponse.qrCode= base64code;           
+            res.send(paymentLinkResponse);
         }
 
 
