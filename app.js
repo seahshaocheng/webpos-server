@@ -13,6 +13,7 @@ const {makeTerminalRequest} = require('./utilities/terminalInterface');
 const cron = require('node-cron');
 
 let pendingOrders = [];
+let orders = [];
 // test
 const app = express();
 
@@ -56,6 +57,8 @@ app.post('/makePayment', async (req,res)=>{
 
     let OrderDetails = {
         reference:paymentRequestData.transaction_id,
+        date:moment.utc().format("YYYYMMDDhhmmss"),
+        amount:req.body.amount,
         email:req.body.shopperEmail
     }
 
@@ -66,7 +69,17 @@ app.post('/makePayment', async (req,res)=>{
         console.log("sending payment request");
         console.log(paymentRequest1);
         const terminalApiResponse = await terminalAPI.sync(paymentRequest1);
-        console.log(terminalApiResponse);
+        let paymentResult = terminalApiResponse.SaleToPOIResponse.PaymentResponse.Response.Result;
+        console.log(JSON.stringify(terminalApiResponse,null,4));
+        if(paymentResult==="Success"){
+            //add this orders to the list of orders
+            //get payment type from response
+            let paymentType = terminalApiResponse.SaleToPOIResponse.PaymentResponse.PaymentResult.PaymentInstrumentData.CardData.PaymentBrand;
+            OrderDetails.paymentMethod  = paymentType;
+            console.log(OrderDetails);
+            orders.push(OrderDetails);
+        }
+
         res.send(terminalApiResponse);
     }
     catch(error){
@@ -155,8 +168,6 @@ app.post("/paymentLink", async (req,res)=>{
             paymentLinkResponse.qrCode= base64code;           
             res.send(paymentLinkResponse);
         }
-
-
        
     }
     catch(error){
@@ -713,6 +724,17 @@ app.post('/fetchTerminals',async(req,res)=>{
     catch(e){
         res.status(500).send(e);
     }
+});
+
+app.get('/fetchTodayOrders',async(req,res)=>{
+    let date = moment().format("YYYYMMDD");
+
+    if (req.query.date!==undefined){
+        date = req.query.date;
+    }
+
+    let todayOrders = orders.filter(x=>x.date.includes(date));
+    res.send(todayOrders);
 });
 
 
